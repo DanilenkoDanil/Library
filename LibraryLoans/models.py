@@ -36,6 +36,8 @@ class Loan(models.Model):
         return timezone.now().date() > self.due_date
 
     def is_due_soon(self):
+        if self.is_overdue():
+            return False
         return 0 < (self.due_date - timezone.now().date()).days <= 7
 
     def __str__(self):

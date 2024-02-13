@@ -1,36 +1,35 @@
-from django.shortcuts import render, get_object_or_404
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework.generics import RetrieveAPIView, ListAPIView
+from rest_framework import status
+from .serializers import AuthorSerializer, WorkSerializer, ClientSerializer, LoanSerializer
 from .models import Author, Work, Client, Loan
 from datetime import date, timedelta
 
 
-def search(request):
-    query = request.GET.get('query', '')
-    search_by = request.GET.get('search_by', 'author')
+class SearchAPIView(APIView):
+    def get(self, request, format=None):
+        query = request.query_params.get('query', '')
+        search_by = request.query_params.get('search_by', 'author')
 
-    if search_by == 'author':
-        results = Author.objects.filter(name__icontains=query)
-    elif search_by == 'work':
-        results = Work.objects.filter(title__icontains=query)
-    else:
-        results = Client.objects.filter(name__icontains=query)
-
-    print(results)
-
-    return render(request, 'search_results.html', {'results': results})
-
-
-def loans_list(request):
-    loans = Loan.objects.all()
-    for loan in loans:
-        if loan.due_date < date.today():
-            loan.is_overdue = True
-        elif loan.due_date < date.today() + timedelta(days=7):
-            loan.is_due_soon = True
+        if search_by == 'author':
+            results = Author.objects.filter(name__icontains=query)
+            serializer = AuthorSerializer(results, many=True)
+        elif search_by == 'work':
+            results = Work.objects.filter(title__icontains=query)
+            serializer = WorkSerializer(results, many=True)
         else:
-            loan.is_ok = True
-    return render(request, 'loans_list.html', {'loans': loans})
+            results = Client.objects.filter(name__icontains=query)
+            serializer = ClientSerializer(results, many=True)
+
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
 
-def client_detail(request, client_id):
-    client = get_object_or_404(Client, pk=client_id)
-    return render(request, 'client_detail.html', {'client': client})
+class LoansListAPIView(ListAPIView):
+    serializer_class = LoanSerializer
+    queryset = Loan.objects.all()
+
+
+class ClientDetailAPIView(RetrieveAPIView):
+    queryset = Client.objects.all()
+    serializer_class = ClientSerializer

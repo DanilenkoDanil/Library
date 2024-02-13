@@ -1,38 +1,57 @@
-from django.test import TestCase, Client as DjangoClient
+from rest_framework.test import APITestCase
+from rest_framework import status
 from django.core.urlresolvers import reverse
 from .models import Author, Work, Client, Loan
-from datetime import date, timedelta
 
 
-class LibraryTest(TestCase):
+class SearchAPITestCase(APITestCase):
 
     def setUp(self):
-        self.test_client = DjangoClient()
-        self.author = Author.objects.create(name="Тестовий Автор")
-        self.work = Work.objects.create(title="Тестовий Твір", author=self.author)
-        self.client = Client.objects.create(name="Тестовий Клієнт", email="test@example.com", phone="+380661234567")
-        self.loan = Loan.objects.create(work=self.work, client=self.client,
-                                        issue_date=date.today() - timedelta(days=10),
-                                        due_date=date.today() - timedelta(days=5))
+        Author.objects.create(name="Author 1")
+        Work.objects.create(title="Work 1", author=Author.objects.get(name="Author 1"))
+        Client.objects.create(name="Client 1")
 
-    def test_search_view(self):
-        response = self.test_client.get(reverse('search'), {'query': self.author.name, 'search_by': 'author'})
-        self.assertQuerysetEqual(response.context['results'], [repr(self.author)])
+    def test_search_author(self):
+        url = reverse('search')
+        response = self.client.get(url, {'query': 'Author 1', 'search_by': 'author'})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
 
-        response = self.test_client.get(reverse('search'), {'query': self.work.title, 'search_by': 'work'})
-        self.assertQuerysetEqual(response.context['results'], [repr(self.work)])
+    def test_search_work(self):
+        url = reverse('search')
+        response = self.client.get(url, {'query': 'Work 1', 'search_by': 'work'})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
 
-        response = self.test_client.get(reverse('search'), {'query': self.client.name, 'search_by': 'client'})
-        self.assertQuerysetEqual(response.context['results'], [repr(self.client)])
+    def test_search_client(self):
+        url = reverse('search')
+        response = self.client.get(url, {'query': 'Client 1', 'search_by': 'client'})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
 
-    def test_loans_list_view(self):
-        response = self.test_client.get(reverse('loans_list'))
-        self.assertEqual(response.status_code, 200)
-        self.assertTemplateUsed(response, 'loans_list.html')
-        self.assertTrue(any(loan.is_overdue for loan in response.context['loans']))
 
-    def test_client_detail_view(self):
-        response = self.test_client.get(reverse('client_detail', args=[self.client.pk]))
-        self.assertEqual(response.status_code, 200)
-        self.assertTemplateUsed(response, 'client_detail.html')
-        self.assertEqual(response.context['client'], self.client)
+class LoansListAPITestCase(APITestCase):
+
+    def setUp(self):
+        self.author = Author.objects.create(name="Author 1")
+        self.work = Work.objects.create(title="Work 1", author=self.author)
+        self.client_obj = Client.objects.create(name="Client 1")
+        Loan.objects.create(work=self.work, client=self.client_obj, issue_date="2023-12-21", due_date="2024-01-21")
+
+    def test_loans_list(self):
+        url = reverse('loans')
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+
+
+class ClientDetailAPITestCase(APITestCase):
+
+    def setUp(self):
+        self.client_obj = Client.objects.create(name="Client 1")
+
+    def test_client_detail(self):
+        url = reverse('client', kwargs={'pk': self.client_obj.pk})
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['name'], self.client_obj.name)
